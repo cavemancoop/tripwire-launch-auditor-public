@@ -1,0 +1,19 @@
+# Never let COPY . . overwrite the image's own (correctly-installed, linux)
+# node_modules with whatever's on the host (Windows binaries, wrong platform).
+node_modules
+**/node_modules
+**/.turbo
+**/dist
+**/coverage
+
+.git
+.orbio
+data
+*.log
+
+.env
+.env.local
+.env.*.local
+
+Dockerfile
+.dockerignore

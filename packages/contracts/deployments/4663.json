@@ -1,0 +1,11 @@
+{
+  "chainId": 4663,
+  "CommitRegistry": {
+    "address": "0xF36F84a7B7DfFB952341d021db51bD76E54fDBEe",
+    "owner": "0x9b4EDe199198ca3D41A9a7D2997606BaCd30BA03",
+    "deployTx": "0x0c86fa95afe5b510d7ecc4c36edd8eb8698d6cc219bd21fef0bda90e964d9199",
+    "deployBlock": 55362197,
+    "deployedAt": "2026-09-05",
+    "explorer": "https://robinhoodchain.blockscout.com/address/0xf36f84a7b7dffb952341d021db51bd76e54fdbee"
+  }
+}

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tripwire Launch Auditor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◈</span>
+    <div>
+      <h1>Tripwire Launch Auditor</h1>
+      <p class="tagline">Precommitted exit-risk forecasts &middot; Robinhood Chain (4663)</p>
+    </div>
+  </div>
+  <div class="api-config">
+    <label for="api-base">api</label>
+    <input id="api-base" type="text" spellcheck="false" autocomplete="off" />
+    <button id="api-reload" type="button">reload</button>
+    <span id="api-status" class="status-dot" title="api reachability"></span>
+  </div>
+</header>
+
+<div class="hero-intro">
+  <p class="hero-sentence">
+    Tripwire scores new token launches on Robinhood Chain for five ways they
+    can go wrong, signs each forecast and commits it on-chain minutes after
+    launch, then grades itself in public against what actually happened
+    &mdash; including where it's wrong. The scores rank launches; they are not
+    calibrated probabilities.
+  </p>
+  <p class="hero-disclaimer">Independent research tooling &mdash; not affiliated with Robinhood Markets.</p>
+</div>
+
+<main>
+  <section class="panel" id="panel-example">
+    <h2><span class="panel-index">00</span> One forecast, checked end to end</h2>
+    <p class="panel-sub">What was forecast, when it was committed on-chain, and what happened. Everything below comes from this forecast's receipt, and you can check it yourself without trusting this server.</p>
+    <div class="card" id="example-body"><p class="empty">loading&hellip;</p></div>
+  </section>
+
+
+  <section class="panel" id="panel-metabolism">
+    <h2><span class="panel-index">01</span> Metabolism</h2>
+    <p class="panel-sub">The agent's own Orbio key lifecycle &mdash; spec &sect;0.1: zero-billing compute, credit-driven throughput, unattended continuity.</p>
+    <div class="metric-grid" id="metabolism-metrics"></div>
+    <div class="subgrid">
+      <div class="card" id="budget-card">
+        <h3>Today's deep-dive budget</h3>
+        <div id="budget-body">&mdash;</div>
+      </div>
+      <div class="card" id="continuity-card">
+        <h3>Unattended continuity</h3>
+        <div id="continuity-body">&mdash;</div>
+      </div>
+    </div>
+    <div class="card" id="funding-card" style="margin-top:1rem">
+      <h3>Funding &mdash; CREDIT activated into the agent's account</h3>
+      <div id="funding-body">&mdash;</div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-pnl">
+    <h2><span class="panel-index">02</span> Compute cost &mdash; trailing 24h</h2>
+    <p class="panel-sub">The Orbio-specific test (spec &sect;0.1): would this run the same on a plain OpenRouter account with no token?</p>
+    <div class="pnl-grid">
+      <div class="card pnl-card" id="pnl-standalone">
+        <h3>Priced as a plain OpenRouter account</h3>
+        <div class="pnl-body">&mdash;</div>
+      </div>
+      <div class="card pnl-card" id="pnl-orbio">
+        <h3>Actually charged by Orbio</h3>
+        <div class="pnl-body">&mdash;</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-launches">
+    <h2><span class="panel-index">03</span> Live launches</h2>
+    <p class="panel-sub">Latest launches with the <code>det_v0</code> scores and a receipt for each committed forecast. The scores <em>rank</em> launches, and only on the two outcomes where the benchmark shows they beat the base rate; they are not calibrated probabilities. Drawdown isn't shown because <code>det_v0</code> ranks it backwards. A launch gets its scores about ten minutes after its pool appears, and its commit a few minutes after that, so the newest rows are always still pending.</p>
+    <div class="table-wrap">
+      <table id="launches-table">
+        <thead>
+          <tr>
+            <th>token</th><th>source</th><th>lane</th><th>launched</th>
+            <th title="det_v0 score, 0–1: higher = riskier. Ranking only, not a probability.">insider exit 24h score</th><th title="det_v0 score, 0–1: higher = more likely still trading. Ranking only, not a probability.">still trading 24h score</th>
+            <th>proof</th>
+          </tr>
+        </thead>
+        <tbody id="launches-body"><tr><td colspan="7" class="empty">loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-benchmark">
+    <h2><span class="panel-index">04</span> Benchmark</h2>
+    <p class="panel-sub">AUROC / Brier Skill vs. baselines, per outcome &middot; horizon &middot; forecaster. Minimum <span id="min-metrics">100</span> resolved to show a metric, <span id="min-claims">200</span> (with &ge;30 positives) to claim a beat. "Beats X" means the ranking is statistically distinguishable from X's (DeLong test) &mdash; not that the probability itself is well-calibrated; Brier Skill is shown alongside for that.</p>
+    <p class="panel-sub panel-callout">Scored rows are live forecasts whose commit landed on-chain (by block time) within 30 minutes of the report's T+10m anchor and before the outcome's horizon ended. Late commits, outage replays and uncommitted reports are excluded and counted under each outcome. No backfilled rows.</p>
+    <div class="table-wrap" id="benchmark-wrap"><p class="empty">loading&hellip;</p></div>
+  </section>
+
+  <section class="panel" id="panel-lifecycle">
+    <h2><span class="panel-index">05</span> Key lifecycle</h2>
+    <p class="panel-sub">The signed <code>lifecycle_log</code> chain &mdash; each row's <code>bodyHash</code> folds its parent's, so altering or deleting a row is detectable, not just promised. Forks (two rows naming one parent) are shown, not hidden.</p>
+    <div class="chain-status" id="chain-status">&mdash;</div>
+    <div class="table-wrap">
+      <table id="lifecycle-table">
+        <thead><tr><th>at</th><th>transition</th><th>reason</th><th>balance</th><th>key remaining</th><th>billing</th></tr></thead>
+        <tbody id="lifecycle-body"><tr><td colspan="6" class="empty">loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Counted forecasts were committed before their outcome window closed &middot; reproducible scorer &middot; scores rank launches, they are not calibrated probabilities. Nothing stronger claimed.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

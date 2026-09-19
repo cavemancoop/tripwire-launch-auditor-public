@@ -1,0 +1,16 @@
+{
+  "hasKey": true,
+  "prefix": "sk-orbio-REDACTED",
+  "createdAt": "2026-09-09T19:05:41.034726+00:00",
+  "lastUsedAt": null,
+  "baseUrl": "https://api.orbio.so/api/v1",
+  "anthropicBaseUrl": "https://api.orbio.so/api",
+  "legacy": {
+    "label": "sk-or-v1-REDACTED",
+    "limitUsd": 150.676874,
+    "usageUsd": 142.5389237,
+    "remainingUsd": 8.1379503,
+    "disabled": false,
+    "readable": true
+  }
+}

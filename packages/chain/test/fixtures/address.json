@@ -1,0 +1,8 @@
+{
+  "hash": "0x1111111111111111111111111111111111111111",
+  "is_contract": true,
+  "is_verified": false,
+  "creation_transaction_hash": "0xdeadbeef00000000000000000000000000000000000000000000000000000001",
+  "creator_address_hash": "0x2222222222222222222222222222222222222222",
+  "token": { "type": "ERC-20" }
+}

@@ -1,0 +1,107 @@
+{
+  "version": "det_v0",
+  "note": "Hand-set directional priors, frozen and committed before live operation (spec §4). One logistic per outcome/horizon over the standardized feature vector in src/inputs.ts: p = sigmoid(bias + sum(w_i * z_i)); a missing feature contributes 0. These are NOT fitted — det_v0.1 re-sets the intercepts from the backfill (checkpoint §8.3) and det_v1 re-fits the weights once there are 300 resolved launches. TRADING_ALIVE is the one positive outcome: p = P(still trading), so survival-promoting features get positive weights.",
+  "outcomes": {
+    "INSIDER_EXIT@6h": {
+      "bias": -2.0,
+      "weights": {
+        "creatorDevbuyPct": 0.6, "clusterSupplyPct": 0.7, "top10NoncreatorPct": 0.4,
+        "launchBlockClusterSize": 0.5, "creatorPriorInsiderExitRate": 0.9,
+        "creatorPriorLaunches": 0.2, "creatorAgeDays": -0.4, "uniqueBuyers10m": -0.3,
+        "creatorApprovalsOutsideRouters": 0.6, "hasX": -0.2, "hasSite": -0.2
+      }
+    },
+    "INSIDER_EXIT@24h": {
+      "bias": -1.6,
+      "weights": {
+        "creatorDevbuyPct": 0.6, "clusterSupplyPct": 0.7, "top10NoncreatorPct": 0.4,
+        "launchBlockClusterSize": 0.5, "creatorPriorInsiderExitRate": 0.9,
+        "creatorPriorLaunches": 0.2, "creatorAgeDays": -0.4, "uniqueBuyers10m": -0.3,
+        "creatorApprovalsOutsideRouters": 0.6, "hasX": -0.2, "hasSite": -0.2
+      }
+    },
+    "INSIDER_EXIT@72h": {
+      "bias": -1.3,
+      "weights": {
+        "creatorDevbuyPct": 0.6, "clusterSupplyPct": 0.7, "top10NoncreatorPct": 0.4,
+        "launchBlockClusterSize": 0.5, "creatorPriorInsiderExitRate": 0.9,
+        "creatorPriorLaunches": 0.2, "creatorAgeDays": -0.4, "uniqueBuyers10m": -0.3,
+        "creatorApprovalsOutsideRouters": 0.6, "hasX": -0.2, "hasSite": -0.2
+      }
+    },
+    "SELL_IMPAIRED@1h": {
+      "bias": -2.5,
+      "weights": {
+        "sellTaxBps": 1.0, "mintable": 0.4, "ownerRenounced": -0.7, "sellSimOk": -1.2,
+        "verified": -0.3, "sellImpactBps": 0.5,
+        "hookCanBlockSwap": 1.2, "hookCanTaxSwap": 1.0
+      }
+    },
+    "SELL_IMPAIRED@24h": {
+      "bias": -2.2,
+      "weights": {
+        "sellTaxBps": 1.0, "mintable": 0.4, "ownerRenounced": -0.7, "sellSimOk": -1.2,
+        "verified": -0.3, "sellImpactBps": 0.5,
+        "hookCanBlockSwap": 1.2, "hookCanTaxSwap": 1.0
+      }
+    },
+    "LIQ_IMPAIRED@24h": {
+      "bias": -2.2,
+      "weights": {
+        "lpLockedByConstruction": -2.0, "liquidityUsd10m": -0.5, "verified": -0.3,
+        "ownerRenounced": -0.3, "clusterSupplyPct": 0.3, "creatorPriorInsiderExitRate": 0.5,
+        "sidePoolCount": 0.6, "hookGatesLpRemoval": 0.2
+      }
+    },
+    "LIQ_IMPAIRED@7d": {
+      "bias": -1.8,
+      "weights": {
+        "lpLockedByConstruction": -2.0, "liquidityUsd10m": -0.5, "verified": -0.3,
+        "ownerRenounced": -0.3, "clusterSupplyPct": 0.3, "creatorPriorInsiderExitRate": 0.5,
+        "sidePoolCount": 0.6, "hookGatesLpRemoval": 0.2
+      }
+    },
+    "DRAWDOWN_80@24h": {
+      "bias": -0.6,
+      "weights": {
+        "creatorDevbuyPct": 0.5, "top10NoncreatorPct": 0.5, "clusterSupplyPct": 0.4,
+        "microbuyShare10m": 0.3, "sellImpactBps": 0.4, "liquidityUsd10m": -0.6,
+        "uniqueBuyers10m": -0.4, "buysPerBuyer10m": 0.2, "creatorAgeDays": -0.2,
+        "hookCanBlockSwap": 0.4, "sidePoolCount": 0.3, "creatorApprovalsOutsideRouters": 0.5,
+        "hasX": -0.15, "hasSite": -0.15
+      }
+    },
+    "DRAWDOWN_80@7d": {
+      "bias": -0.2,
+      "weights": {
+        "creatorDevbuyPct": 0.5, "top10NoncreatorPct": 0.5, "clusterSupplyPct": 0.4,
+        "microbuyShare10m": 0.3, "sellImpactBps": 0.4, "liquidityUsd10m": -0.6,
+        "uniqueBuyers10m": -0.4, "buysPerBuyer10m": 0.2, "creatorAgeDays": -0.2,
+        "hookCanBlockSwap": 0.4, "sidePoolCount": 0.3, "creatorApprovalsOutsideRouters": 0.5,
+        "hasX": -0.15, "hasSite": -0.15
+      }
+    },
+    "TRADING_ALIVE@24h": {
+      "bias": -1.0,
+      "weights": {
+        "uniqueBuyers10m": 0.7, "buysPerBuyer10m": 0.2, "liquidityUsd10m": 0.6,
+        "creatorAgeDays": 0.3, "hasX": 0.2, "hasSite": 0.2,
+        "creatorDevbuyPct": -0.4, "clusterSupplyPct": -0.4, "top10NoncreatorPct": -0.3,
+        "microbuyShare10m": -0.4, "creatorPriorInsiderExitRate": -0.5, "sellImpactBps": -0.3,
+        "hookCanBlockSwap": -0.5, "hookCanTaxSwap": -0.4, "sidePoolCount": -0.3,
+        "creatorApprovalsOutsideRouters": -0.4
+      }
+    },
+    "TRADING_ALIVE@7d": {
+      "bias": -1.8,
+      "weights": {
+        "uniqueBuyers10m": 0.7, "buysPerBuyer10m": 0.2, "liquidityUsd10m": 0.6,
+        "creatorAgeDays": 0.3, "hasX": 0.2, "hasSite": 0.2,
+        "creatorDevbuyPct": -0.4, "clusterSupplyPct": -0.4, "top10NoncreatorPct": -0.3,
+        "microbuyShare10m": -0.4, "creatorPriorInsiderExitRate": -0.5, "sellImpactBps": -0.3,
+        "hookCanBlockSwap": -0.5, "hookCanTaxSwap": -0.4, "sidePoolCount": -0.3,
+        "creatorApprovalsOutsideRouters": -0.4
+      }
+    }
+  }
+}

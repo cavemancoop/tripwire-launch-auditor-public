@@ -1,0 +1,7 @@
+{
+  "key": "sk-orbio-REDACTED",
+  "prefix": "sk-orbio-REDACTED",
+  "baseUrl": "https://api.orbio.so/api/v1",
+  "anthropicBaseUrl": "https://api.orbio.so/api",
+  "replaced": true
+}

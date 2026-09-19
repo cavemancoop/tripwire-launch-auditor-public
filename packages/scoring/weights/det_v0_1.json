@@ -1,0 +1,33 @@
+{
+  "version": "det_v0.1",
+  "basedOn": "det_v0",
+  "note": "det_v0 with per-outcome intercepts re-set to logit(observed base rate). INSIDER_EXIT intercepts are from the M4 retrospective backfill (checkpoint 8.3, 2026-09-08). LIQ_IMPAIRED@24h, DRAWDOWN_80@24h and TRADING_ALIVE@24h intercepts are updated from the 2026-09-09 re-featured backfill (--refeature, all 1,250 retrospective launches rebuilt; this run also fixed the wrong-pool quote bug). SELL_IMPAIRED is deliberately withheld from biasOverride even though that same run made it newly measurable (~96% true, n~50): a rate that extreme, from a resolver whose only prior read on this cell was contaminated, needs an independent ground-truth cross-check (not just a bigger sample through the same resolver) before it goes into a public forecaster — see `notMeasured.SELL_IMPAIRED@1h` and DECISIONS.md. Only cells with a trustworthy observed rate get a `biasOverride`; every other cell keeps its det_v0 hand-set prior and is labelled 'not measured' in `provenance`. When feature coverage is poor (>70% of features null) the caller emits the base rate at confidence:low rather than this logistic. det_v0.2 (the full re-featured 14-day backfill, this refeature run's superset) will re-derive every cell.",
+  "biasOverride": {
+    "INSIDER_EXIT@6h": -2.0,
+    "INSIDER_EXIT@24h": -2.058,
+    "LIQ_IMPAIRED@24h": -0.397,
+    "DRAWDOWN_80@24h": -0.682,
+    "TRADING_ALIVE@24h": -0.972
+  },
+  "provenance": {
+    "backfillAsOf": "2026-09-09",
+    "rpc": "chainstack-growth",
+    "population": "retrospective launches, lane=qualified",
+    "measured": {
+      "INSIDER_EXIT@6h": { "n": 151, "positives": 18, "rate": 0.1192, "unresolvable": 0, "backfillAsOf": "2026-09-08" },
+      "INSIDER_EXIT@24h": { "n": 53, "positives": 6, "rate": 0.1132, "unresolvable": 0, "backfillAsOf": "2026-09-08" },
+      "LIQ_IMPAIRED@24h": { "n": 194, "positives": 78, "rate": 0.402, "backfillAsOf": "2026-09-09", "note": "refeatured; n 144 -> 194 (positives derived from the logged n×rate, not the raw count — exact log wasn't retained)" },
+      "DRAWDOWN_80@24h": { "n": 131, "positives": 44, "rate": 0.336, "backfillAsOf": "2026-09-09", "note": "refeatured; n 102 -> 131, previous 'floor' caveat (dead tokens with no price series dropping out of the denominator) presumed improved by --refeature but not re-verified. positives derived from n×rate." },
+      "TRADING_ALIVE@24h": { "n": 204, "positives": 56, "rate": 0.275, "backfillAsOf": "2026-09-09", "note": "positive polarity: rate = P(still trading). refeatured, n 79 -> 204. positives derived from n×rate." }
+    },
+    "notMeasured": {
+      "INSIDER_EXIT@72h": "0 resolved (few qualified launches >= 72h old in the 14d window)",
+      "SELL_IMPAIRED@1h": "measured at 96.2% (n=53) by the 2026-09-09 refeature — the same run that fixed the wrong-pool quote bug this cell was previously contaminated by. Withheld anyway: n=53 (~2 negative cases) can't rule out a residual artifact in the same resolver, and there is no cross-check computed by independent logic yet. A companion effort (cohort-extraction, a ~3,500-token dataset built for a different purpose) could eventually supply that independent check once its own data-integrity pass is done — see DECISIONS.md.",
+      "SELL_IMPAIRED@24h": "measured at 95.9% (n=49) by the same run; same reasoning as @1h.",
+      "LIQ_IMPAIRED@7d": "0 resolved",
+      "DRAWDOWN_80@7d": "0 resolved",
+      "TRADING_ALIVE@7d": "0 resolved"
+    },
+    "supersededBy": "det_v0.2 — the full 14-day backfill after the primary-pool + sell-impaired fixes, re-featuring every retrospective launch"
+  }
+}

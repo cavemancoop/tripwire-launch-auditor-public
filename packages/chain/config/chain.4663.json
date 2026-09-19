@@ -1,0 +1,200 @@
+{
+  "chainId": 4663,
+  "name": "Robinhood Chain",
+  "explorer": "https://robinhoodchain.blockscout.com",
+  "blockscoutApi": "https://robinhoodchain.blockscout.com/api/v2",
+  "blockscoutApiNote": "Cloudflare/backend gives 403 or 500 to server-side calls and /api/v2/* is flaky even from the in-app browser. The Etherscan-compat path `/api?module=...&action=...` (e.g. action=getcontractcreation) does answer intermittently from the in-app browser and is the only reason the launchpad attribution below could be confirmed. NOT a runtime dependency (spec §8.1 / post-M3 checkpoint) — best-effort only, behind AddressHistoryProvider in M4.",
+  "approxBlockSeconds": 0.1,
+  "getLogsMaxRange": 9999,
+  "getLogsMaxRangeNote": "blockmachine.io caps eth_getLogs at (toBlock-fromBlock) <= 10000, i.e. a 9999 inclusive span. M4 rpc-budget probes on boot ([9999, 5000, 2000]) and overrides this. ordofi tolerated ~2000 before flapping.",
+  "rpcNote": "2026-09-06: RH_RPC_URL is https://rpc-robinhood.blockmachine.io. ordofi (rpc.ordofi.network) archive is currently broken (missing trie node at depth) and eth_getLogs returns -32005 'network is busy' unpredictably. Tested alternatives: official rpc.mainnet.chain.robinhood.com works for small queries but hard-throttles 'Too Many Requests'; Pocket (robinhood.api.pocket.network) is non-archive; publicnode needs a paid token. blockmachine serves archive + gives clean 'rate limit exceeded' (retryable) but throttles ~12-request bursts. A keyed / dedicated node is the production answer.",
+  "uniswap": {
+    "v4PoolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "verified": true,
+      "evidence": "https://robinhoodchain.blockscout.com/address/0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "note": "Contract name PoolManager; deployed via the deterministic CREATE2 deployer 0x4e59b44847b379578588920cA78FbF26c0B4956C. ~$29M TVL, 28.8k txns, ~48 Initialize events per 2000 blocks (2026-09-04). This is the primary launch venue on 4663."
+    },
+    "v3Factory": {
+      "address": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "verified": false,
+      "alternates": ["0x1F98431c8aD98523631AE4a59f267346ea31F984"],
+      "evidence": "https://robinhoodchain.blockscout.com/address/0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "note": "Blockscout metadata_tag UniswapV3Factory; same deployer (0x9701fb0aDe1E269c8f64Ec0C7b3cfADB31A13A52) as the v2 factory tag. Alternate is the cross-chain canonical address, also tagged. No PoolCreated seen in a small live window — confirm range/address from a real v3 launch before trusting."
+    },
+    "v2Factory": {
+      "address": "0x8bcEaA40B9AcdfAedF85AdF4FF01F5Ad6517937f",
+      "verified": true,
+      "evidence": "https://robinhoodchain.blockscout.com/address/0x8bcEaA40B9AcdfAedF85AdF4FF01F5Ad6517937f",
+      "note": "Blockscout metadata_tag UniswapV2Factory; emits PairCreated live (~2 per 2000 blocks, 2026-09-04). LONG's stock-paired pools may land here."
+    },
+    "v4Quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "verified": true,
+      "evidence": "quoteExactInputSingle returned a live quote for the CAPY/ETH pool via eth_call (2026-09-05); address also in Uniswap's own v4 deployments doc.",
+      "note": "V4Quoter. Used for our own quote-based sell impact (spec §3.3.7 / §3.3.9), sized to 100 and 1,000 USDG notionals in M4 (checkpoint 8.4). v3/v2 sell-impact quotes are not wired (v3 barely used on 4663)."
+    }
+  },
+  "quoteAssets": {
+    "note": "Quote/base assets. Used to tell the new token from the paired asset in a fresh pool, and (later) for liquidity_usd_10m + sell_impact_bps (spec §3.3.7). USDG confirmed from a real v4 Initialize + Blockscout token page (verified). WETH has several deployments on 4663; both verified candidates included. M4 (checkpoint 8.6) also treats any pair side whose code is >24h old at pool creation as the quote side (tokenized stocks that LONG pairs against).",
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "list": [
+      "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "0xc08751E47611F035B958889557EDBBE33d4a8Bce"
+    ]
+  },
+  "launchpadVerificationMethod": "On-chain only. Do NOT navigate to launchpad marketing sites — several impostor sites on this ecosystem phish for seed phrases. Primary attribution is by RUNTIME CODE HASH (launchpad tokens share a template): keccak256(eth_getCode(token)), or a masked hash when the template splices per-token address immutables into the runtime, or the implementation address for minimal-proxy pads. Factory / entrypoint address is the corroborating signal. To confirm a pad: get a labelled token (user-supplied, or a listing on defillama.com / dexscreener.com), then `GET /api?module=contract&action=getcontractcreation&contractaddresses=<token>` on Blockscout from the in-app browser for contractFactory + creation tx, and eth_getCode for the template fingerprint. Record template + factory + specimen tx, set verified:true.",
+  "launchpadAttributionNote": "M4 packages/chain attributeSource() must be updated to: (1) hash-match against each verified pad's template (exact codeHash, maskedCodeHash over immutableRanges, or implementation address), then (2) fall back to factory/entrypoint match, then (3) source:'raw'. Until that lands, all launches are still source:'raw'.",
+  "lpLockedByConstructionPolicy": "true ONLY after verifying one real position's custody on-chain (position NFT owner, or a hook that blocks removal) — never from pad docs (checkpoint 8.2). Every pad below is currently false: no custody check has been done. SELL_IMPAIRED / LIQ_IMPAIRED keep being scored for all of them (the conservative direction).",
+  "launchpads": [
+    {
+      "key": "pons",
+      "label": "Pons",
+      "model": "bonding-curve-v4",
+      "lpLockedByConstruction": false,
+      "lpLockedByConstructionNote": "Pons docs claim the curve LP is locked; not verified on-chain yet. Flip only after checking a real Pons position's custody.",
+      "verified": true,
+      "attributionMethod": "code-hash",
+      "factories": ["0x3711cea4feade896c913c68f01eda97cb06d1a42"],
+      "entrypoints": ["0xe33e9e479df8802cb0866d5d05258bec4cf62948"],
+      "candidateFactories": [
+        "0xE1aD3F2C507c2d4128c166d5Fa78Cc86CC94913c",
+        "0xAa9B62495dC6834B3A82e5f7378d4207331E599C",
+        "0xaf42eaC6955c990b8a3e271C62aFbA487b697b86",
+        "0x2bE1399A44DC5386e064f9e94b43F88B5284523f"
+      ],
+      "template": {
+        "kind": "full-bytecode",
+        "runtimeBytes": 3248,
+        "immutableRanges": [[391, 411], [541, 561], [1106, 1126]],
+        "maskedCodeHash": "0x36133854884d6c3e4287713e2d4f213db1fcc39913fcdf619960ab8fd0bd9101",
+        "note": "ERC-20 with three 20-byte address immutables spliced into the runtime at these byte offsets (creator + 2 protocol addresses; all vary per token). Zero those ranges before keccak256(runtime) to match every Pons token. Raw $ORBIO codehash 0x67d7a9d1677c238d9dae8679f500586f7d189e7bcda59964f3ce634dcf7363cf is per-token, not a fingerprint. 33 of 200 recent launches sampled had the 3248-byte length."
+      },
+      "specimen": {
+        "token": "0xAa07A0e9209e16aC99708C3EC70159c6eF3128A3",
+        "symbol": "ORBIO",
+        "creator": "0xbfabe94a454947f0f98bc92d3e052413928b04b8",
+        "creationBlock": 51223088,
+        "creationTx": "0xf2b153483bc3c6fd8f3fe1cb523988740521f1b791f3b79aa7d3723c2d6a500a",
+        "evidence": "https://robinhoodchain.blockscout.com/tx/0xf2b153483bc3c6fd8f3fe1cb523988740521f1b791f3b79aa7d3723c2d6a500a"
+      },
+      "tokenCreatedSignature": "",
+      "evidence": "getcontractcreation for $ORBIO (orbio.so, a Pons launch): contractFactory 0x3711cea4feade896c913c68f01eda97cb06d1a42 (20906 bytes of code), creation tx 0xf2b15348…6a500a sent by dev 0xbfabe94a… to Pons entrypoint 0xe33e9e479df8802cb0866d5d05258bec4cf62948, block 51223088. Confirmed 2026-09-05 via Blockscout Etherscan-compat /api from the in-app browser + eth_getCode from ordofi.",
+      "note": "Dominant pad by fee share. Attribute by template.maskedCodeHash first, factory/entrypoint second."
+    },
+    {
+      "key": "long",
+      "label": "LONG",
+      "model": "stock-paired",
+      "lpLockedByConstruction": false,
+      "verified": true,
+      "attributionMethod": "code-hash",
+      "factories": ["0x1b37d3a72082029c44b35b604ea473617580b69a"],
+      "entrypoints": ["0x22e99278308b393ea1260859b181ad7e78f5eeed"],
+      "candidateFactories": [],
+      "template": {
+        "kind": "minimal-proxy",
+        "runtimeBytes": 44,
+        "exactCode": "0x3d3d3d3d363d3d37363d733be8b97fd0e713b5abe0649fa830223b6b4bc5995af43d3d93803e602a57fd5bf3",
+        "codeHash": "0xf10f86b05965a827a332e6c73086f18026fbe3917f4bffbec3f938b3b5397b56",
+        "implementation": "0x3Be8B97Fd0e713B5aBE0649Fa830223B6B4BC599",
+        "implementationCodeHash": "0x67a382a66d2b14a7032698e11c9ae4432435d2c803429d5c660692289ad10e12",
+        "note": "Optimized EIP-1167 clone: 3d3d3d3d363d3d37363d73 <impl 20 bytes> 5af43d3d93803e602a57fd5bf3. Every LONG token has byte-identical runtime; attribute by exact codeHash or the embedded implementation address. 76 of 200 recent launches sampled matched.",
+        "candidateImplementations": [
+          {
+            "address": "0xd6Da7f07eE822C8538C901217b37D1e7d86c76E5",
+            "implementationCodeHash": "0x217ea670b47d03c4ee9eecabb08e9591e3a6f340f8de8a1470642c33c5c59b94",
+            "seen": "7 of 200 recent launches",
+            "verified": false,
+            "note": "Second minimal-proxy target (7794-byte impl). Likely a LONG template version but no labelled specimen confirmed — attribute as a candidate only. Blockscout getcontractcreation on these was 500ing on 2026-09-05; recheck."
+          }
+        ]
+      },
+      "specimen": {
+        "token": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18",
+        "symbol": "AI",
+        "creator": "0x9b1513dfdfc023fa6e576b130066ec05b6f1bfa1",
+        "creationBlock": 9721433,
+        "creationTx": "0x7632524cd4cec7cabc574b58c54095a2ca33a2a1b037b1486e8b88b79bd3bf1b",
+        "evidence": "https://robinhoodchain.blockscout.com/tx/0x7632524cd4cec7cabc574b58c54095a2ca33a2a1b037b1486e8b88b79bd3bf1b"
+      },
+      "tokenCreatedSignature": "",
+      "evidence": "getcontractcreation for $AI (a long.xyz launch): contractFactory 0x1b37d3a72082029c44b35b604ea473617580b69a (1912 bytes of code), creation tx 0x76325245…d3bf1b sent by 0x9b1513df… to LONG entrypoint 0x22e99278308b393ea1260859b181ad7e78f5eeed, block 9721433. creationBytecode is the 602c3d8160093d39f3 clone-deploy of impl 0x3Be8B97F…C599. Confirmed 2026-09-05 via Blockscout Etherscan-compat /api from the in-app browser + eth_getCode from ordofi.",
+      "note": "Pairs new tokens against Robinhood tokenized stocks. lpLockedByConstruction stays false; LIQ_IMPAIRED / SELL_IMPAIRED apply."
+    },
+    {
+      "key": "hookr",
+      "label": "Hookr.fun",
+      "model": "v4-hook",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "Reported as a Uniswap v4 hook launchpad. Its pools should show a non-zero hooks address in v4 Initialize — grouping by that hooks contract is one way to attribute. HOOKR token seen at 0x18E674231A58c239Dc7DaeDcffE15Ec3A24cff5c (unverified; check on Blockscout)."
+    },
+    {
+      "key": "v4fun",
+      "label": "v4.fun (Canopy)",
+      "model": "bonding-curve-v4",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "Canopy / $CNPY. CNPY token seen at 0x701257ee548006e7b60f3abd4bd9b74c65f2d87a (unverified). Confirm the factory from a v4.fun token's creation tx on Blockscout."
+    },
+    {
+      "key": "noxa",
+      "label": "Noxa",
+      "model": "bonding-curve",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "Largely deprecated; kept for backfill coverage (spec §7). Spec §3.2 notes Noxa restricted launch-block buys to the creator. Multiple 'NOXA' tokens exist on-chain; confirm the real pad's factory before trusting attribution."
+    },
+    {
+      "key": "sentry",
+      "label": "Sentry",
+      "model": "bonding-curve",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "Small pad. A token 'sentrylauncher' is on-chain at 0x432e63E00DBC8EFd1109C263dBedCb793609F7Af (unverified) — inspect its deployer on Blockscout as a lead."
+    },
+    {
+      "key": "virtuals",
+      "label": "Virtuals Protocol",
+      "model": "agent-bonding-curve",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "AI-agent tokens. VIRTUAL token seen at 0xc6911796042b15d7Fa4F6CDe69e245DdCd3d9c31 (unverified). Virtuals uses a bonding-curve genesis/factory contract that graduates tokens to v4 — find the 4663 deployment by tracing an agent token's creation tx."
+    },
+    {
+      "key": "poolstrade",
+      "label": "pools.trade",
+      "model": "pool-first-v4",
+      "lpLockedByConstruction": false,
+      "factories": [],
+      "candidateFactories": [],
+      "verified": false,
+      "tokenCreatedSignature": "",
+      "evidence": "",
+      "note": "Reported as a Uniswap-Labs pool-first launch flow. May emit only v4 Initialize with a periphery router as tx.to and no separate factory event — attribute by that router address once identified from a real launch tx."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "wallets": [
+    "0x4cb72456e82aedd8b1ef0f08d03cc6bff96c6291"
+  ],
+  "accrued": {
+    "usd": 209.688753,
+    "microUsd": "209688753"
+  },
+  "purchased": {
+    "usd": 0,
+    "microUsd": "0"
+  },
+  "deposited": {
+    "usd": 0,
+    "microUsd": "0"
+  },
+  "depositBalance": {
+    "usd": 0,
+    "microUsd": "0"
+  },
+  "depositFrozen": false,
+  "spent": {
+    "usd": 0,
+    "microUsd": "0"
+  },
+  "claimed": {
+    "usd": 150.676874,
+    "microUsd": "150676874"
+  },
+  "balance": {
+    "usd": 24.011879,
+    "microUsd": "24011879"
+  }
+}

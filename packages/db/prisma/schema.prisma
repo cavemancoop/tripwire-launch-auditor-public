@@ -1,0 +1,565 @@
+// Launch Auditor — schema for the seven tables named in the build guide:
+// launches, features, reports, commits, outcomes, lifecycle_log, receipts.
+// Modelled from spec §1 (outcomes + horizons), §1.1 (report time is arbitrary),
+// §3.3 (feature vector v0), §6 (commitment).
+//
+// Not launch-shaped: a Report is about (chainId, tokenAddress) at an arbitrary
+// `reportTime` with a `trigger`; the Launch link is optional. Outcomes anchor to
+// `anchorTime` (= the reportTime the horizons are measured from), not to launch.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+// `source` is a free-form string, not an enum: the Robinhood Chain launchpad
+// set is open and churns (pons, long, hookr, v4fun, noxa, sentry, virtuals,
+// poolstrade, flap, hoodfun, bags, ...), plus `raw` for a pool created directly
+// on a DEX with no recognised launchpad, and `unknown` before attribution runs.
+// Known values are a TS union in @launch-auditor/chain; the DB column stays open.
+
+/// Index lane = every launch, event-derived features only (spec §3.1).
+/// Qualified lane = >=2000 USD liq-equiv or >=25 unique buyers in 10m, or any paid request.
+enum Lane {
+  index
+  qualified
+}
+
+/// What caused a report to be issued (spec §1.1). Metrics are published per
+/// trigger because on-demand requests skew toward already-suspected tokens.
+enum ReportTrigger {
+  launch     // index-lane report at/near launch
+  qualified  // qualified-lane report at/near launch
+  on_demand  // POST /v1/assess for a token of any age (spec §9)
+  scheduled  // daily re-score of a watched token
+  event      // re-score triggered by a material on-chain change
+}
+
+/// The mechanical outcomes (spec §1). TRADING_ALIVE (M4e) is the one positive
+/// outcome — value=true means the token still traded near the horizon.
+enum OutcomeLabel {
+  INSIDER_EXIT
+  SELL_IMPAIRED
+  LIQ_IMPAIRED
+  DRAWDOWN_80
+  TRADING_ALIVE
+}
+
+enum OutcomeStatus {
+  PENDING       // horizon not reached yet
+  RESOLVED      // value is set
+  NA            // not applicable (launchpad token for SELL_IMPAIRED / LIQ_IMPAIRED)
+  UNRESOLVABLE  // data unavailable at the horizon check
+}
+
+/// Forecasters scored side by side (spec §2).
+enum ForecasterKind {
+  base_rate
+  base_rate_fixed
+  heuristic_v1
+  det_v0
+  det_v0_1
+  det_v1
+  llm_deepdive_v0
+  scanhood
+  goplus
+}
+
+/// Metabolism state machine (spec §8, v0.1 §7.2).
+enum LifecycleState {
+  NO_KEY
+  ACTIVE
+  DRAINING
+  ROTATING
+  REVOKING
+  STARVED
+}
+
+enum CommitKind {
+  REPORT_BATCH     // Merkle root of report hashes (every 5 min or 200 leaves)
+  ARTIFACT         // feature-code / weight / outcome-rule / scorer hashes + model id
+  SIGNER_ROTATION  // agent EIP-712 signer rotation
+}
+
+// ───────────────────────────── Launches ─────────────────────────────
+
+model Launch {
+  id                     String  @id @default(cuid())
+  chainId                Int
+  source                 String  @default("unknown") // pons|long|hookr|v4fun|noxa|sentry|virtuals|poolstrade|...|raw|unknown
+  sourceConfidence       Float?  // 0..1; null until attribution runs
+  lpLockedByConstruction Boolean @default(false) // §3.3.1
+
+  tokenAddress   String  // the new token
+  quoteAddress   String? // the paired asset (WETH / USDG / tokenized stock); null if undetermined
+  poolKind       String? // "v2" | "v3" | "v4"
+  poolAddress    String? // v2/v3 pool contract; null for v4
+  poolId         String? // v4 bytes32 pool id; null for v2/v3
+  poolFee        Int?    // v3/v4 fee (hundredths of a bip); null for v2
+  poolTickSpacing Int?   // v3/v4 tick spacing; null for v2
+  poolHooks      String? // v4 hooks contract (zero address = none); null for v2/v3
+  // M4 primary-pool selection: a token can have many v4 pools; the real one is
+  // paired with a known quote asset with the most activity. poolFeeSuspect flags
+  // fee >= 10% (decoy / token-vs-token pools). primaryPoolCheckedAt = last re-eval.
+  poolFeeSuspect      Boolean   @default(false)
+  primaryPoolCheckedAt DateTime?
+  creatorAddress String
+  launchBlock    BigInt
+  launchTxHash   String
+  launchAt       DateTime?
+  detectedVia    String? // "v4:Initialize" | "v3:PoolCreated" | "v2:PairCreated" | "<launchpad>:TokenCreated"
+  // M4d (checkpoint §8.6): token code age at pool creation, in seconds. Null when
+  // older than the 24h freshness window (a genuine launch is < 24h). Filled at
+  // T+10m — the deployment-block search is archive-RPC bound (1-6s/call).
+  tokenAgeAtPoolSec Int?
+
+  lane          Lane    @default(index)
+  quotaExceeded Boolean @default(false) // >5 launches by this creator in 24h: indexed, not scored (§3.1)
+  retrospective Boolean @default(false) // backfill rows (spec §7)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  feature        Feature?
+  reports        Report[]
+  outcomes       Outcome[]
+  clusterMembers ClusterMember[]
+
+  @@unique([chainId, tokenAddress])
+  @@index([source, launchBlock])
+  @@index([creatorAddress])
+  @@index([lane, createdAt])
+  @@index([poolAddress])
+  @@index([poolId])
+  @@map("launches")
+}
+
+// ──────────────────────── Creator cluster (§3.2) ───────────────────────
+// A wallet is in a launch's creator cluster if any rule matches. Each row is
+// one (wallet, rule) with its evidence tx. Deliberately narrow: shared bridge
+// or CEX funding is NOT association. M4's INSIDER_EXIT resolution reads this.
+
+enum ClusterRule {
+  CREATOR          // rule 1: it is the creator
+  LAUNCH_BLOCK_BUY // rule 2: it bought in the launch block
+  DIRECT_TRANSFER  // rule 3: it received tokens directly from the creator
+  FIRST_INBOUND    // rule 4: its first-ever inbound tx on 4663 came from the creator
+}
+
+model ClusterMember {
+  id         String      @id @default(cuid())
+  launchId   String
+  launch     Launch      @relation(fields: [launchId], references: [id], onDelete: Cascade)
+  address    String
+  rule       ClusterRule
+  evidenceTx String? // tx hash backing this membership (null only for rule CREATOR)
+  confidence Float       @default(1.0)
+  createdAt  DateTime    @default(now())
+
+  @@unique([launchId, address, rule])
+  @@index([launchId])
+  @@index([address])
+  @@map("creator_cluster")
+}
+
+// ───────────────────────────── Features ─────────────────────────────
+// Deterministic feature vector v0 (spec §3.3). One row per launch.
+// Every value is reproducible from RPC + Blockscout at the stated block,
+// except external scanner outputs, stored verbatim with a fetch timestamp.
+
+model Feature {
+  id       String @id @default(cuid())
+  launchId String @unique
+  launch   Launch @relation(fields: [launchId], references: [id], onDelete: Cascade)
+
+  schemaVersion String @default("v0")
+
+  // §3.3.2
+  creatorDevbuyPct Float?
+
+  // §3.3.3  (creator_prior_* are empty at start, filled by backfill §7)
+  creatorAgeDays              Float?
+  creatorPriorLaunches        Int?
+  creatorPriorInsiderExitRate Float?
+
+  // §3.3.4  (at T+10m)
+  clusterSize       Int?
+  clusterSupplyPct  Float?
+  clusterConfidence Float? // §3.2 "cluster confidence is published"
+
+  // §3.3.5  (at T+10m)
+  top10NoncreatorPct Float?
+
+  // §3.3.6  (at T+10m)
+  uniqueBuyers10m Int?
+  buysPerBuyer10m Float?
+  microbuyShare10m Float?
+
+  // §3.3.7
+  liquidityUsd10m Float?
+  sellImpactBps   Int? // = sellImpactBps1000 ("holder-sized"); kept for det_v0 weights
+  // M4d (checkpoint §8.4): fixed USD-notional sell sizes via a Quoter spot quote
+  sellImpactBps100  Int? // 100 quote-unit sell
+  sellImpactBps1000 Int? // 1,000 quote-unit sell
+
+  // §3.3.8  (presence only)
+  hasX    Boolean?
+  hasSite Boolean?
+
+  // M4e — v4 hook / side-pool / approval surface (the pre-staged-exit surface)
+  hookPermissions                Int?     // low-14-bit v4 hook flags from the hook address
+  hookCanBlockSwap               Boolean? // beforeSwap present -> can revert a sell
+  hookCanTaxSwap                 Boolean? // beforeSwap/afterSwap returns-delta -> dynamic tax
+  hookGatesLpRemoval             Boolean? // beforeRemoveLiquidity present
+  sidePoolCount                  Int?     // other v4 pools this token has a currency slot in
+  creatorApprovalsOutsideRouters Int?     // creator/cluster ERC-20 approvals to non-router spenders
+
+  // §3.3.9  (non-launchpad only; from GoPlus/ScanHood cross-check + own eth_call sell quote)
+  verified       Boolean?
+  ownerRenounced Boolean?
+  mintable       Boolean?
+  lpHolderType   String?
+  sellSimOk      Boolean?
+  sellTaxBps     Int?
+
+  // provenance: feature key -> { source, block, fetchedAt }
+  provenance Json @default("{}")
+
+  // verbatim external scanner payloads with fetch timestamps (spec §2, §3.3)
+  goplusRaw        Json?
+  goplusFetchedAt  DateTime?
+  scanhoodRaw      Json?
+  scanhoodFetchedAt DateTime?
+
+  indexLaneComputedAt DateTime? // §3.3 items 1, 2, 8 — immediately
+  t10ComputedAt       DateTime? // §3.3 items 4, 5, 6, 7 — at T+10m
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("features")
+}
+
+// ───────────────────────────── Reports ──────────────────────────────
+// One row per (token, reportTime, forecaster). Holds the outcome probabilities,
+// the canonical JSON that was hashed, the EIP-712 signature, and the commit link.
+// Report time is arbitrary (spec §1.1): a report may be issued at launch or for
+// a token of any age. The Launch link is optional.
+
+model Report {
+  id                String         @id @default(cuid())
+  chainId           Int
+  tokenAddress      String
+  reportTime        DateTime       // §1.1 — all horizons are measured from here
+  trigger           ReportTrigger
+  forecaster        ForecasterKind
+  forecasterVersion String
+
+  launchId String?
+  launch   Launch? @relation(fields: [launchId], references: [id], onDelete: SetNull)
+
+  // §1.1 age-aware inputs, computed at reportTime. Null for launch-time reports
+  // (their context lives in the linked Launch's Feature row).
+  ageHours                       Float?
+  holderCountTrend               Float?  // slope of holder count since the prior report
+  clusterBalanceDeltaPct         Float?  // cluster net balance change since the prior report
+  liquidityDeltaPct              Float?  // primary-pool liquidity change since the prior report
+  ownershipChangedSinceLast      Boolean?
+  implementationChangedSinceLast Boolean? // proxy upgrade / contract replacement
+
+  // outcome probabilities (spec §1); null where N/A for this token type / horizon
+  pInsiderExit6h  Float?
+  pInsiderExit24h Float?
+  pInsiderExit72h Float?
+  pSellImpaired1h Float?
+  pSellImpaired24h Float?
+  pLiqImpaired24h Float?
+  pLiqImpaired7d  Float?
+  pDrawdown80_24h Float?
+  pDrawdown80_7d  Float?
+  // M4e — trading survival (the one positive outcome; p = P(still trading))
+  pTradingAlive24h Float?
+  pTradingAlive7d  Float?
+
+  confidence Float?
+  evidence   Json?  // [{ claim, tx_or_url }]
+  coverage   Json?  // features that were null at report time (transparency, §8.2)
+
+  // §8.2 target packet block pin: { number, hash, timestamp } — part of the
+  // signed canonicalJson; kept here for querying too.
+  blockPin Json?
+
+  canonicalJson String  // RFC 8785 canonical form that was hashed
+  reportHash    String  @unique // keccak256(canonicalJson)
+  eip712Signature String?
+  signerAddress   String?
+
+  // §8.3 — every report runs the validator; only passing reports may be committed.
+  validatorPassed   Boolean @default(false)
+  validatorFailures Json?   // string[] of reasons when it fails
+
+  createdAtBlock BigInt?
+  retrospective  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  // commitment link (spec §6). merkleLeafHash == reportHash for report batches.
+  commitId      String?
+  commit        Commit? @relation(fields: [commitId], references: [id])
+  merkleLeafHash String?
+
+  // M8 — free-feed poster (spec build-guide M8): set once this report's
+  // qualified-launch summary + proof link has been posted to Telegram, so a
+  // worker restart never double-posts.
+  telegramPostedAt DateTime?
+
+  @@index([chainId, tokenAddress, reportTime])
+  @@index([launchId, forecaster])
+  @@index([forecaster, trigger, createdAt])
+  @@index([commitId])
+  @@map("reports")
+}
+
+// ──────────────────────────── Commitment ────────────────────────────
+// CommitRegistry batches (spec §6): Merkle root of report hashes every 5 min
+// or 200 leaves; also commits feature-code / weight / outcome-rule / scorer
+// hashes and the model id on first run.
+
+model Commit {
+  id         String     @id @default(cuid())
+  kind       CommitKind
+  chainId    Int
+  merkleRoot String
+  leafCount  Int        @default(0)
+
+  // proofs, filled by the commit job (M3): [{ reportHash, leafHash, index, proof: string[] }]
+  leaves Json @default("[]")
+
+  // ARTIFACT commits carry the frozen hashes + model id
+  featureCodeHash String?
+  weightHash      String?
+  outcomeRuleHash String?
+  scorerHash      String?
+  modelId         String?
+
+  txHash      String?
+  blockNumber BigInt?
+  committedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  reports Report[]
+
+  @@index([kind, createdAt])
+  @@index([txHash])
+  @@map("commits")
+}
+
+// ──────────────────────────── Outcomes ──────────────────────────────
+// Resolved per (token, anchorTime, label, horizon, rule version) — spec §1, §1.1.
+// One measurement window is shared by every forecaster's report at the same
+// anchorTime; the scorer joins reports to outcomes on (token, anchorTime, ...).
+
+model Outcome {
+  id           String  @id @default(cuid())
+  chainId      Int
+  tokenAddress String
+  anchorTime   DateTime      // §1.1 — the reportTime the horizons are measured from
+  trigger      ReportTrigger // assessment trigger; metrics are split by this (§1.1, §2)
+
+  launchId String?
+  launch   Launch? @relation(fields: [launchId], references: [id], onDelete: SetNull)
+
+  label   OutcomeLabel
+  horizon String        // "1h" | "6h" | "24h" | "72h" | "7d"
+
+  status      OutcomeStatus @default(PENDING)
+  value       Boolean?      // resolved outcome; null while PENDING / NA / UNRESOLVABLE
+  ruleVersion String        @default("v1")
+  evidence    Json?         // tx hashes / measurements backing the resolution
+  coverage    Json?         // M4: { blocksScanned, chunkSize, callCount, gaps[], notes } for the scan behind this resolution
+
+  horizonAt  DateTime?      // wall-clock time the horizon check is due (anchorTime + horizon)
+  measuredAt DateTime?
+  retrospective Boolean     @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, tokenAddress, anchorTime, label, horizon, ruleVersion])
+  @@index([status, horizonAt])
+  @@index([trigger])
+  @@map("outcomes")
+}
+
+// ─────────────────────── Metabolism lifecycle log ───────────────────
+// Signed row for every state transition and every 60s snapshot (spec §8).
+
+model LifecycleLog {
+  id        String  @id @default(cuid())
+  isSnapshot Boolean @default(false) // false = transition, true = 60s snapshot
+
+  prevState LifecycleState?
+  newState  LifecycleState
+  reason    String
+
+  keyId         String?
+  keyHashPrefix String?
+
+  balanceUsd      Float?
+  keyRemainingUsd Float?
+  reserveUsd      Float?
+
+  // IDS check inputs: our local per-call ledger vs orbio_get_key_status
+  ledgerSpendUsd   Float?
+  providerSpendUsd Float?
+  /// retained for the signed body; no longer drives a revoke (M5c)
+  idsMismatch      Boolean @default(false)
+  /// M5c: exact | aggregate_only | unavailable | anomaly | phantom
+  billingStatus    String?
+
+  // M5: tamper-evident chain — bodyHash folds prevHash; signature signs bodyHash
+  prevHash  String?
+  bodyHash  String?
+  signature String?  // agent-signed bodyHash
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([newState, createdAt])
+  @@map("lifecycle_log")
+}
+
+/// M5: per-generation LLM spend, the local half of the IDS check against
+/// orbio_get_key_status. One row per llm_deepdive_v0 run.
+model MetabolismSpend {
+  id           String   @id @default(cuid())
+  at           DateTime @default(now())
+  /// best-available per-run figure for display — see costBasis for what it is
+  costUsd      Float
+  model        String
+  keyHashPrefix String?
+  reportId     String?
+  generationId String?  // OpenRouter generation id (null through the Orbio gateway)
+
+  // M5c — one number was doing three jobs. Every cost now carries its provenance.
+  promptTokens     Int?
+  completionTokens Int?
+  /// tokens × pinned model price at pricingVersion; null when tokens or price unknown
+  estimatedCostUsd Float?
+  pricingVersion   String?
+  /// token_estimate | provider_reconciled_estimate | provider_reported | provider_generation | unavailable
+  costBasis        String   @default("unavailable")
+  /// estimatedCostUsd × the epoch's reconciliation factor — filled by the runner
+  reconciledCostUsd Float?
+  epochId          String?
+
+  @@index([at])
+  @@index([epochId])
+  @@map("metabolism_spend")
+}
+
+/// M5c — one row per lifecycle tick: the provider's authoritative spend delta
+/// over the window vs the sum of local token-priced estimates. The ratio grades
+/// the estimator; the discrepancy is the agent's own cost-forecast error.
+model MetabolismEpoch {
+  id                   String   @id @default(cuid())
+  at                   DateTime @default(now())
+  keyHashPrefix        String?
+  /// orbio_get_balance.spent.usd at this tick (cumulative, authoritative)
+  providerSpendUsd     Float
+  /// providerSpendUsd − previous epoch's providerSpendUsd
+  providerDeltaUsd     Float
+  /// Σ MetabolismSpend.estimatedCostUsd for runs recorded in this window
+  localEstimateUsd     Float
+  requestCount         Int
+  /// providerDeltaUsd / localEstimateUsd when both > 0
+  reconciliationFactor Float?
+  /// (provider − local) / local × 100 — the estimator's error this window
+  discrepancyPct       Float?
+  anomaly              Boolean  @default(false)
+  /// provider spend rose with zero local requests — the one compromise signal
+  phantom              Boolean  @default(false)
+  billingStatus        String
+
+  @@index([at])
+  @@map("metabolism_epoch")
+}
+
+// ──────────────────────────── Receipts ──────────────────────────────
+// Every paid call (spec §9). x402 settlement tx or design-partner API key.
+
+model Receipt {
+  id       String @id @default(cuid())
+  endpoint String // "/v1/deepdive" | "/v1/report" | ...
+
+  tokenAddress String?
+  payerAddress String?
+  asset        String  @default("USDG")
+  amount       String  // decimal string
+  chainId      Int
+
+  txHash   String? // x402 settlement; null when apiKeyId is set
+  apiKeyId String? // design-partner key used instead of x402
+
+  createdAt DateTime @default(now())
+
+  @@index([endpoint, createdAt])
+  @@index([txHash])
+  @@map("receipts")
+}
+
+// ──────────────────────── Watcher cursor (M1) ───────────────────────
+// Persisted last-processed block per chain per stream, so a restart resumes
+// without gaps or reprocessing. `pnpm watcher:replay --from <block>` rewinds it.
+
+model WatcherCursor {
+  id        String   @id @default(cuid())
+  chainId   Int
+  stream    String   // "pools" (v2/v3/v4 pool creation) | "launchpads" (factory events)
+  lastBlock BigInt
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, stream])
+  @@map("watcher_cursors")
+}
+
+// ──────────────────────── Benchmark snapshot (M9) ───────────────────────
+// The worker recomputes the benchmark every 5 minutes and the API only ever
+// reads the latest one — fine on one machine sharing a filesystem
+// (fork-and-run, spec §8.1), but api and worker are separate Railway
+// services with separate filesystems. Postgres is the one thing every
+// deployment topology already shares, so it's the transport here, not a
+// volume. `key` is always "latest" (a singleton row) for now — one row is
+// all the API has ever needed.
+model BenchmarkSnapshot {
+  key         String   @id @default("latest")
+  json        Json
+  generatedAt DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@map("benchmark_snapshots")
+}
+
+// ──────────────────── Catch-site failure counters (M10) ───────────────────
+// The systemic fix for silently-swallowed errors: every long-running loop's
+// catch block already logs and continues (by design — one bad launch/token
+// shouldn't stop the sweep), but a console line nobody is tailing is
+// invisible. This is the same bug class that caused the 2-day pool-derivation
+// stall and the 6.8h report backlog (both eventually caught by staring at
+// logs, not by anything on /metrics) -- and the det_v0.1 enum incident
+// (2026-09-17, CHANGELOG.md) that found this file's own predecessor gap.
+// `site` is a short, stable, dot-namespaced id (e.g. "t10.report_assembly");
+// api and worker are separate Railway services with separate filesystems, so
+// Postgres is the transport, same reasoning as BenchmarkSnapshot above.
+model CatchSiteFailure {
+  site        String   @id
+  count       Int      @default(0)
+  lastMessage String?
+  lastAt      DateTime @updatedAt
+
+  @@map("catch_site_failures")
+}

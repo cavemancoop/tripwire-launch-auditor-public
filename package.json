@@ -1,0 +1,47 @@
+{
+  "name": "launch-auditor",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "verify": "node scripts/verify.mjs",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
+    "db:validate": "prisma validate --schema packages/db/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema packages/db/prisma/schema.prisma",
+    "dev:api": "pnpm --filter @launch-auditor/api dev",
+    "dev:worker": "pnpm --filter @launch-auditor/worker dev",
+    "watcher:replay": "pnpm --filter @launch-auditor/worker watcher:replay",
+    "watcher:recent": "pnpm --filter @launch-auditor/worker watcher:recent",
+    "watcher:prune-stale": "pnpm --filter @launch-auditor/worker watcher:prune-stale",
+    "commit:run": "pnpm --filter @launch-auditor/worker commit:run",
+    "commit:verify": "pnpm --filter @launch-auditor/worker commit:verify",
+    "verify:receipt": "pnpm --filter @launch-auditor/api exec tsx scripts/verify-receipt.ts",
+    "commit:reconcile": "pnpm --filter @launch-auditor/worker commit:reconcile",
+    "outcomes:run": "pnpm --filter @launch-auditor/worker outcomes:run",
+    "scorer:run": "pnpm --filter @launch-auditor/worker scorer:run",
+    "backfill": "pnpm --filter @launch-auditor/worker backfill",
+    "orbio:auth": "pnpm --filter @launch-auditor/worker orbio:auth",
+    "railway:push-env": "pnpm --filter @launch-auditor/worker railway:push-env",
+    "orbio:probe": "pnpm --filter @launch-auditor/worker orbio:probe",
+    "contracts:build": "forge build --root packages/contracts",
+    "contracts:test": "forge test --root packages/contracts",
+    "contracts:deploy": "forge script packages/contracts/script/Deploy.s.sol --root packages/contracts --rpc-url robinhood --broadcast"
+  },
+  "devDependencies": {
+    "@prisma/client": "catalog:",
+    "@types/node": "catalog:",
+    "prisma": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

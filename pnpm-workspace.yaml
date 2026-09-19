@@ -1,0 +1,40 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Dependency install scripts we permit to run (pnpm 11 blocks all by default).
+# All five are first-party build tooling: esbuild (vitest/tsx transpile),
+# the Prisma engine binaries, and msgpackr's optional native accelerator.
+allowBuilds:
+  # Speakeasy-generated SDK; ships prebuilt esm/, no build step we need.
+  '@openrouter/sdk': false
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+
+# Single source of truth for dependency versions across the monorepo.
+# Referenced from package.json files as "catalog:".
+catalog:
+  "@types/node": ^22.10.0
+  typescript: ^5.7.0
+  tsx: ^4.19.0
+  vitest: ^3.0.0
+  fastify: ^5.2.0
+  bullmq: ^5.34.0
+  viem: ^2.21.0
+  "@prisma/client": ^6.0.0
+  prisma: ^6.0.0
+  canonicalize: ^2.0.0
+  # M5b Metabolism (Orbio MCP). Pinned exact (latest on npm 2026-09-09) — the
+  # OAuth + Streamable-HTTP client surface is load-bearing; no silent minor bumps.
+  "@modelcontextprotocol/sdk": 1.30.0
+  zod: 4.6.1
+  # M6 deep-dive. `@openrouter/agent` re-exports `OpenRouter` (plain calls) plus
+  # tool() / callModel / serverTool / stepCountIs / maxCost for the agent loop;
+  # it pulls @openrouter/sdk 0.13.x transitively. Pinned exact.
+  "@openrouter/agent": 0.11.0
+
+minimumReleaseAgeExclude:
+  - zod@4.6.1

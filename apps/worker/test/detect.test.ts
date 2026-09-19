@@ -1,0 +1,43 @@
+import { describe, expect, it, vi } from 'vitest';
+import { detectPools } from '../src/watcher/detect';
+
+// A real Robinhood Chain v4 Initialize log.
+const V4_INIT_LOG = {
+  address: '0x8366a39cc670b4001a1121b8f6a443a643e40951',
+  topics: [
+    '0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438',
+    '0x21529af8145d7ad79ace793fc39402c0a10488b9b21c737ea177a806ffd56a0e',
+    '0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d168',
+    '0x000000000000000000000000f630559b24d6d3186efa9fdf577dea6adb4b1337',
+  ],
+  data: '0x00000000000000000000000000000000000000000000000000000000000186a000000000000000000000000000000000000000000000000000000000000007d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006a86213a1eb60c00000000000000000000000000000000000000000000000000000000000000000000000000005a7d4',
+  blockNumber: '0x3386227',
+  blockHash: '0xac71ce6b00c9365523473fd8f2388699b01e7981686d48323278ff99e63d01d6',
+  transactionHash: '0x48548021a604f472db86306ac490a2223363e3566c58d9860b1590520f1b8f39',
+  transactionIndex: '0xc',
+  logIndex: '0x85',
+  removed: false,
+};
+
+describe('detectPools', () => {
+  it('decodes a v4 Initialize log from the chunked getLogs result', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'eth_getLogs') return [V4_INIT_LOG];
+      throw new Error(`unexpected ${method}`);
+    });
+
+    const detected = await detectPools({ request } as never, 4663, 100n, 200n, 2000);
+
+    expect(detected).toHaveLength(1);
+    expect(detected[0]!.poolCreation.poolKind).toBe('v4');
+    expect(detected[0]!.blockNumber).toBe(0x3386227n);
+    expect(detected[0]!.txHash).toBe(V4_INIT_LOG.transactionHash);
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it('drops logs whose topic0 is not a pool-creation event', async () => {
+    const request = vi.fn(async () => [{ ...V4_INIT_LOG, topics: ['0xdeadbeef'] }]);
+    const detected = await detectPools({ request } as never, 4663, 1n, 2n, 2000);
+    expect(detected).toHaveLength(0);
+  });
+});
