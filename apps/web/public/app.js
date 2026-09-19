@@ -310,9 +310,9 @@ function renderBenchmark(snapshot) {
 }
 
 const INVERTED_NOTE_URL =
-  'https://github.com/cavemancoop/tripwire-launch-auditor/blob/main/DECISIONS.md#inverted-cells-planned-applicability-rule-2026-09-19';
+  'https://github.com/cavemancoop/tripwire-launch-auditor-public#what-the-benchmark-says';
 const INVERTED_TITLE =
-  'AUROC significantly below 0.5 on a claim-sized sample: this forecaster orders this outcome backwards. Our hypothesis and the planned fix are in DECISIONS.md.';
+  'AUROC significantly below 0.5 on a claim-sized sample: this forecaster orders this outcome backwards. Hypothesis: the risk features mark launches already dead by T+10m, which cannot fall further or lose liquidity they never had. No weights were refit after seeing this.';
 
 /**
  * Under an outcome's first row: how many outcome rows exist and why most of
