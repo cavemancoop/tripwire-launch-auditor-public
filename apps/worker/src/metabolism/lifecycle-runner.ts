@@ -225,7 +225,7 @@ export function decideLifecycle(r: LifecycleReading, cfg: LifecycleConfig): Life
         : {
             kind: 'steady',
             state: 'ACTIVE',
-            reason: `ok — balance $${r2(r.balanceUsd)}, key age ${r.keyAgeDays?.toFixed(1) ?? '?'}d`,
+            reason: `ok — balance $${r2(r.balanceUsd)}, key age ${r.keyAgeDays != null ? `${r.keyAgeDays.toFixed(1)}d` : 'unavailable'}`,
           };
     }
   }

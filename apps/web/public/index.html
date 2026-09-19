@@ -19,10 +19,15 @@
     </div>
   </div>
   <div class="api-config">
-    <label for="api-base">api</label>
-    <input id="api-base" type="text" spellcheck="false" autocomplete="off" />
-    <button id="api-reload" type="button">reload</button>
-    <span id="api-status" class="status-dot" title="api reachability"></span>
+    <span id="api-status" class="status-dot" title="live data reachable"></span>
+    <details class="api-advanced">
+      <summary>Advanced</summary>
+      <div class="api-advanced-body">
+        <label for="api-base">API base URL</label>
+        <input id="api-base" type="text" spellcheck="false" autocomplete="off" />
+        <button id="api-reload" type="button">reload</button>
+      </div>
+    </details>
   </div>
 </header>
 
@@ -47,7 +52,7 @@
 
   <section class="panel" id="panel-metabolism">
     <h2><span class="panel-index">01</span> Metabolism</h2>
-    <p class="panel-sub">The agent's own Orbio key lifecycle &mdash; spec &sect;0.1: zero-billing compute, credit-driven throughput, unattended continuity.</p>
+    <p class="panel-sub">The agent's own Orbio account: CREDIT-bounded compute, public funding records, and a signed continuity log.</p>
     <div class="metric-grid" id="metabolism-metrics"></div>
     <div class="subgrid">
       <div class="card" id="budget-card">

@@ -224,6 +224,16 @@ function renderFunding(f) {
   `;
 }
 
+/** Human names for internal launch states; unknown values pass through unchanged. */
+const SOURCE_LABEL = { raw: 'on-chain detected', unknown: 'unattributed' };
+const LANE_LABEL = { index: 'early lane', qualified: 'qualified' };
+const SOURCE_TITLE = { raw: 'Found from the pool-creation event on chain, not attributed to a launchpad', unknown: 'Source not attributed' };
+const sourceLabel = (v) => `<span title="${SOURCE_TITLE[v] ?? 'Launchpad'}">${SOURCE_LABEL[v] ?? v}</span>`;
+const laneLabel = (v) => `<span title="${v === 'index' ? 'Scored from on-chain features only' : 'Reached 25+ unique buyers in 10 minutes; also gets scanner checks'}">${LANE_LABEL[v] ?? v}</span>`;
+
+/** Display only: older signed rows say "key age ?d" when the wallet key has no creation time. The API still serves the exact signed text. */
+const reasonLabel = (r) => (r ?? '').replace('key age ?d', 'key age unavailable');
+
 // ── Live launches ────────────────────────────────────────────────────────
 
 /**
@@ -251,8 +261,8 @@ function renderLaunches(rows) {
       const d = l.detV0 || {};
       return `<tr>
         <td>${short(l.token)}</td>
-        <td>${l.source}</td>
-        <td>${l.lane}</td>
+        <td>${sourceLabel(l.source)}</td>
+        <td>${laneLabel(l.lane)}</td>
         <td>${fmtDate(l.launchAt)}</td>
         <td>${score(d.pInsiderExit24h)}</td>
         <td>${score(d.pTradingAlive24h)}</td>
@@ -366,7 +376,7 @@ function renderLifecycle(lifecycle) {
       (e) => `<tr>
         <td>${fmtDate(e.at)}</td>
         <td>${e.prevState ?? '—'} → <strong>${e.newState}</strong></td>
-        <td style="white-space:normal;font-family:var(--sans)">${e.reason ?? ''}</td>
+        <td style="white-space:normal;font-family:var(--sans)">${reasonLabel(e.reason)}</td>
         <td>${usd(e.balanceUsd)}</td>
         <td>${usd(e.keyRemainingUsd)}</td>
         <td>${billingBadge(e.billingStatus)}</td>
