@@ -4,9 +4,9 @@ Tripwire's job is not to predict every token perfectly. Its job is to publish a 
 
 1. Open the [dashboard](https://web-production-ddcf3.up.railway.app) and start with **One forecast, checked end to end**. It shows a completed forecast, its chain commitment, and its observed outcome.
 2. Run the receipt verifier from the README. It recomputes the report hash, recovers the EIP-712 signer, folds the Merkle proof, and checks the actual commit transaction and block timestamp.
-3. Open the [benchmark](https://api-production-6a84.up.railway.app/v1/benchmark). Its `live` section contains only timing-eligible, non-retrospective rows. The `exclusions` field shows the records deliberately left out.
-4. Read the coverage policy. It states which outcomes are unresolved and why the graded rows are not a random sample.
-5. Return to the dashboard's budget and funding panel. It shows the Orbio/CREDIT mechanism that constrains optional deep-dive compute.
+3. Scroll to the dashboard's **Benchmark** panel (04). It lists every outcome, horizon and forecaster, and it shows both the stronger result (insider exit at 24h) and the weaker one (the 80% drawdown cell, where `det_v0` ranks backwards and an existing scanner beats it). Only timing-eligible, non-retrospective rows are scored; the excluded records are counted under each outcome. The same data is available as JSON at `/v1/benchmark` on the API host if you want to check it programmatically — it is a large raw document, not a page to read.
+4. Read the coverage line above that table. It states how many outcomes have been graded out of those whose horizon has passed, and why the graded rows are not a random sample.
+5. Return to the dashboard's **Metabolism** panel (01) for the Orbio/CREDIT mechanism that bounds deep-dive compute, and the **Key lifecycle** panel (05) for the signed, hash-chained continuity log.
 
 The intended takeaway is simple: an automated system made a signed, on-chain commitment; its timing can be checked independently; and its performance table includes both its stronger and weaker results.
 
