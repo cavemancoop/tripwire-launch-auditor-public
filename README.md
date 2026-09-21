@@ -81,6 +81,8 @@ packages/contracts CommitRegistry Solidity contract and tests
 
 Read [docs/JUDGE-GUIDE.md](./docs/JUDGE-GUIDE.md) for the three-minute product walkthrough. The guide leads with a receipt, then the eligible benchmark, then the CREDIT-funded compute mechanism.
 
+For the product direction beyond the deployed system, read [docs/VISION-AND-ROADMAP.md](./docs/VISION-AND-ROADMAP.md). It separates working functionality from planned v0.3–v0.5 work.
+
 ## Security
 
 Please do not open an issue containing a secret, wallet key, access token, or production credential. See [SECURITY.md](./SECURITY.md).
